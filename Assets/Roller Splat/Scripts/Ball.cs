@@ -41,7 +41,7 @@ public class Ball : MonoBehaviour
             if (collider.TryGetComponent(out GroundTile tile) &&
                 !tile.isColored)
             {
-                tile.meshRenderer.material.color = solveColor;
+                tile.ChangeColor(solveColor);
             }
         }
 

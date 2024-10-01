@@ -8,4 +8,7 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Roller Splat/Scenes/Level1.unity
     guid: c850ee8c3b14cc8459e7e186857cf567
+  - enabled: 1
+    path: Assets/Roller Splat/Scenes/Level2.unity
+    guid: fd49d0df81b907447a0ffe765a82e4a2
   m_configObjects: {}
