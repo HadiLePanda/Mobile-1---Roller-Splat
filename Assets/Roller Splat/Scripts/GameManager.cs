@@ -1,9 +1,22 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
 public class GameManager : MonoBehaviour
 {
+    [Header("Sounds")]
+    public AudioClip levelWinSound;
+    public AudioClip gameStartSound;
+    public AudioClip gameCompleteSound;
+
+    [Header("Settings")]
+    public float winSequenceTime = 2f;
+    public float mainMenuMusicVolume = 0.1f;
+    public float gameplayMusicVolume = 0.2f;
+
     private GroundTile[] levelGroundTiles;
+
+    private Coroutine winRoutine;
 
     public static GameManager singleton;
 
@@ -34,13 +47,14 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    private void Start()
-    {
-        SetupNewLevel();
-    }
-
     private void SetupNewLevel()
     {
+        // setup for main menu
+        if (SceneManager.GetActiveScene().buildIndex == 0)
+        {
+            AudioManager.singleton.SetMusicVolume(mainMenuMusicVolume);
+        }
+
         levelGroundTiles = FindObjectsOfType<GroundTile>();
     }
 
@@ -60,26 +74,72 @@ public class GameManager : MonoBehaviour
         // load next level if this level is complete
         if (hasColoredAllTiles)
         {
-            LoadNextLevel();
+            // trigger win sequence
+            if (winRoutine != null)
+                StopCoroutine(winRoutine);
+            winRoutine = StartCoroutine(WinSequence());
         }
     }
 
-    private void LoadNextLevel()
+    private IEnumerator WinSequence()
     {
+        // freeze gameplay
+        Ball ball = Ball.singleton;
+        ball.Freeze();
+
+        // play win effects
+        AudioManager.singleton.PlaySound2DOneShot(levelWinSound);   // win sound
+        ball.PlayWinEffect();                                       // player confettis
+        Camera.main.GetComponent<GameCamera>().PlayWinEffect();     // camera confettis
+
+        // if game is finished, play game won sound
+        bool wasLastLevel = !NextSceneExists();
+        if (wasLastLevel)
+        {
+            // stop music
+            AudioManager.singleton.StopMusic();
+
+            // play game complete sound
+            AudioManager.singleton.PlaySound2DOneShot(gameCompleteSound);
+        }
+
+        // wait for win sequence
+        var sequenceTime = wasLastLevel ? winSequenceTime + 1f : winSequenceTime;
+        yield return new WaitForSeconds(sequenceTime);
+
+        // next level
+        LoadNextLevel();
+    }
+
+    private bool NextSceneExists()
+    {
+        // check if the next scene index doesn't exceed the last scene index
         var currentSceneIndex = SceneManager.GetActiveScene().buildIndex;
         var nextSceneIndex = currentSceneIndex + 1;
+        var lastSceneIndex = SceneManager.sceneCountInBuildSettings - 1;
 
-        // check if the next scene index doesn't exceed the last scene index
-        var nextSceneExists = nextSceneIndex <= SceneManager.sceneCountInBuildSettings - 1;
+        return nextSceneIndex <= lastSceneIndex;
+    }
 
+    public void LoadNextLevel()
+    {
         // load the next scene if any, otherwise go back to the first scene
-        if (nextSceneExists)
+        if (NextSceneExists())
         {
+            var nextSceneIndex = SceneManager.GetActiveScene().buildIndex + 1;
             SceneManager.LoadScene(nextSceneIndex);
+
+            // update music volume
+            AudioManager.singleton.SetMusicVolume(gameplayMusicVolume);
         }
         else
         {
+            // load main menu
             SceneManager.LoadScene(0);
+
+            // update music volume
+            AudioManager.singleton.SetMusicVolume(mainMenuMusicVolume);
+            AudioManager.singleton.PlayMusic();
         }
     }
 }

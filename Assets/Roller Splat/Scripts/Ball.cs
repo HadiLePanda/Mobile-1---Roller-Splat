@@ -4,14 +4,23 @@ public class Ball : MonoBehaviour
 {
     [Header("References")]
     public Rigidbody rb;
-    public MeshRenderer meshRenderer;
+    public TrailRenderer trailRenderer;
+    public GameObject[] ballModels;
+    public ParticleSystem collisionEffect;
+    public ParticleSystem winEffect;
 
     [Header("Settings")]
     public float speed = 5f;
     public int minSwipeRecognition = 500;
     public float hitObstacleDistanceTreshold = 0.5f;
 
+    [Header("Sounds")]
+    public AudioClip solveSound;
+    public AudioClip collisionSound;
+    public float solvePitchVariation = 0.2f;
+
     private bool isTraveling;
+    private bool isFrozen;
     private Vector3 travelDirection;
     private Vector3 nextCollisionPosition;
     private Vector2 swipePosLastFrame;
@@ -19,15 +28,55 @@ public class Ball : MonoBehaviour
     private Vector2 currentSwipe;
     private Color solveColor;
 
+    private int chosenModelIndex;
+
+    public static Ball singleton;
+
+    private void Awake()
+    {
+        singleton = this;
+    }
+
     private void Start()
     {
-        // get colors
-        solveColor = Random.ColorHSV(0.5f, 1);
-        meshRenderer.material.color = solveColor;
+        // setup effects
+        winEffect.gameObject.SetActive(true);
+        winEffect.Stop();
+        collisionEffect.gameObject.SetActive(true);
+        collisionEffect.Stop();
+
+        // get random colors
+        solveColor = Random.ColorHSV(0.5f, 1f);
+
+        // select a random ball model
+        chosenModelIndex = Random.Range(0, ballModels.Length);
+        var ballModel = GetSelectedBallModel();
+
+        // apply colors to model
+        var ballModelRenderer = ballModel.GetComponent<MeshRenderer>();
+        ballModelRenderer.material.color = solveColor;
+        trailRenderer.material.color = solveColor;
+
+        // update the ball model
+        for (int i = 0; i < ballModels.Length; i++)
+        {
+            // only enable the chosen model, disable the other models
+            bool isChosenModel = i == chosenModelIndex;
+            ballModels[i].gameObject.SetActive(isChosenModel);
+        }
+    }
+
+    private GameObject GetSelectedBallModel()
+    {
+        return ballModels[chosenModelIndex];
     }
 
     private void FixedUpdate()
     {
+        // handle frozen when level won
+        if (isFrozen)
+            return;
+
         // move
         if (isTraveling)
         {
@@ -35,13 +84,16 @@ public class Ball : MonoBehaviour
         }
 
         // handle coloring tiles
-        Collider[] hitCollidres = Physics.OverlapSphere(transform.position - (Vector3.up / 2), 0.05f);
-        foreach (Collider collider in hitCollidres)
+        Collider[] hitColliders = Physics.OverlapSphere(transform.position - (Vector3.up / 2), 0.05f);
+        foreach (Collider collider in hitColliders)
         {
             if (collider.TryGetComponent(out GroundTile tile) &&
                 !tile.isColored)
             {
                 tile.ChangeColor(solveColor);
+
+                // play solve effects
+                AudioManager.singleton.PlaySound2DOneShot(solveSound, pitchVariation: solvePitchVariation);
             }
         }
 
@@ -53,6 +105,10 @@ public class Ball : MonoBehaviour
                 isTraveling = false;
                 travelDirection = Vector3.zero;
                 nextCollisionPosition = Vector3.zero;
+
+                // play obstacle hit effects
+                AudioManager.singleton.PlaySound2DOneShot(collisionSound);
+                collisionEffect.Play();
             }
         }
 
@@ -119,5 +175,15 @@ public class Ball : MonoBehaviour
         }
 
         isTraveling = true;
+    }
+
+    public void Freeze()
+    {
+        isFrozen = true;
+    }
+
+    public void PlayWinEffect()
+    {
+        winEffect.Play();
     }
 }
